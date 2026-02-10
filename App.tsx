@@ -11,7 +11,9 @@ import {
   FileText,
   ExternalLink,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  XCircle,
+  CheckCircle2
 } from 'lucide-react';
 
 import { FileUpload } from './components/FileUpload';
@@ -29,6 +31,8 @@ const App: React.FC = () => {
   const [companyName, setCompanyName] = useState('');
   const [matchPercentage, setMatchPercentage] = useState(0);
   const [matchReason, setMatchReason] = useState('');
+  const [strengths, setStrengths] = useState<string[]>([]);
+  const [weaknesses, setWeaknesses] = useState<string[]>([]);
   const [coverLetterSources, setCoverLetterSources] = useState<{ title: string; uri: string }[]>([]);
   const [emailMessage, setEmailMessage] = useState('');
   
@@ -51,6 +55,8 @@ const App: React.FC = () => {
       setCompanyName(result.companyName);
       setMatchPercentage(result.matchPercentage);
       setMatchReason(result.matchReason);
+      setStrengths(result.strengths || []);
+      setWeaknesses(result.weaknesses || []);
       setCoverLetterSources(result.sources || []);
       setStep(AppStep.COVER_LETTER);
     } catch (error) {
@@ -183,6 +189,8 @@ const App: React.FC = () => {
     setCompanyName('');
     setMatchPercentage(0);
     setMatchReason('');
+    setStrengths([]);
+    setWeaknesses([]);
     setCoverLetterSources([]);
     setEmailMessage('');
     setStep(AppStep.INPUT);
@@ -233,7 +241,7 @@ const App: React.FC = () => {
           disabled={!resume || !jobDescription.trim() || isGeneratingCover}
           className="w-full"
         >
-          Generate Cover Letter <ArrowRight className="w-4 h-4 ml-1" />
+          Analyze and Generate <ArrowRight className="w-4 h-4 ml-1" />
         </Button>
       </div>
     </div>
@@ -278,7 +286,47 @@ const App: React.FC = () => {
            </div>
         </div>
 
+        {/* Strengths & Weaknesses Grid */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="bg-green-50/50 p-5 rounded-xl border border-green-100 transition-all hover:border-green-200">
+            <h3 className="text-xs font-semibold text-green-800 uppercase tracking-wider mb-4 flex items-center">
+              <CheckCircle2 className="w-4 h-4 mr-2" /> Match (Strengths)
+            </h3>
+            {strengths.length > 0 ? (
+              <ul className="space-y-3">
+                {strengths.map((strength, idx) => (
+                  <li key={idx} className="text-sm text-green-900 flex items-start leading-relaxed">
+                    <span className="mr-2 mt-1.5 w-1 h-1 rounded-full bg-green-400 flex-shrink-0"></span>
+                    {strength}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-green-700 italic">No specific strengths detected.</p>
+            )}
+          </div>
+
+          <div className="bg-gray-50/50 p-5 rounded-xl border border-gray-200 transition-all hover:border-gray-300">
+            <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-4 flex items-center">
+              <XCircle className="w-4 h-4 mr-2" /> Not Match (Gaps)
+            </h3>
+             {weaknesses.length > 0 ? (
+              <ul className="space-y-3">
+                {weaknesses.map((weakness, idx) => (
+                  <li key={idx} className="text-sm text-gray-700 flex items-start leading-relaxed">
+                    <span className="mr-2 mt-1.5 w-1 h-1 rounded-full bg-gray-400 flex-shrink-0"></span>
+                    {weakness}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-500 italic">No major gaps detected.</p>
+            )}
+          </div>
+        </div>
+
         <div className="space-y-4">
+           <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide">Drafted Cover Letter</h3>
           <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 min-h-[300px] whitespace-pre-wrap leading-relaxed text-gray-700">
             {coverLetter}
           </div>

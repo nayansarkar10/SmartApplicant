@@ -8,6 +8,8 @@ export interface GenerateCoverLetterResult {
   companyName: string;
   matchPercentage: number;
   matchReason: string;
+  strengths: string[];
+  weaknesses: string[];
   sources: { title: string; uri: string }[];
 }
 
@@ -40,7 +42,11 @@ export const generateCoverLetter = async (
 
               TASK:
               1. **IDENTIFY COMPANY**: Use 'googleSearch' if needed to identify the exact Company Name from the description.
-              2. **JOB MATCH ANALYSIS**: Analyze the RESUME against the JOB DESCRIPTION. Calculate a 'matchPercentage' (0-100) representing how well the candidate fits the role based on skills and experience. Provide a 'matchReason' (max 20 words) explaining the score.
+              2. **JOB MATCH ANALYSIS**: Analyze the RESUME against the JOB DESCRIPTION. 
+                 - Calculate a 'matchPercentage' (0-100).
+                 - Provide a 'matchReason' (max 20 words).
+                 - Identify 3-5 'strengths' (skills/experience present in resume that match the job).
+                 - Identify 2-3 'weaknesses' (skills/experience listed in job but missing/weak in resume).
               3. **RESEARCH**: Briefly research the company values to align the letter.
               4. **WRITE COVER LETTER**: Create a tailored cover letter.
 
@@ -81,9 +87,11 @@ export const generateCoverLetter = async (
             companyName: { type: Type.STRING, description: "The identified company name." },
             matchPercentage: { type: Type.INTEGER, description: "A score from 0 to 100 indicating how well the resume matches the job description." },
             matchReason: { type: Type.STRING, description: "A short explanation (max 20 words) for the match score." },
+            strengths: { type: Type.ARRAY, items: { type: Type.STRING }, description: "List of 3-5 matching skills or strengths." },
+            weaknesses: { type: Type.ARRAY, items: { type: Type.STRING }, description: "List of 2-3 missing skills or weaknesses." },
             coverLetterText: { type: Type.STRING, description: "The full formatted cover letter text with newlines." }
           },
-          required: ["companyName", "matchPercentage", "matchReason", "coverLetterText"]
+          required: ["companyName", "matchPercentage", "matchReason", "strengths", "weaknesses", "coverLetterText"]
         }
       },
     });
@@ -93,6 +101,8 @@ export const generateCoverLetter = async (
     const companyName = jsonResponse.companyName || "";
     const matchPercentage = jsonResponse.matchPercentage || 0;
     const matchReason = jsonResponse.matchReason || "Analysis unavailable";
+    const strengths = jsonResponse.strengths || [];
+    const weaknesses = jsonResponse.weaknesses || [];
     
     // Extract grounding sources
     const sources: { title: string; uri: string }[] = [];
@@ -109,7 +119,7 @@ export const generateCoverLetter = async (
       });
     }
 
-    return { text, companyName, matchPercentage, matchReason, sources };
+    return { text, companyName, matchPercentage, matchReason, strengths, weaknesses, sources };
   } catch (error) {
     console.error("Error generating cover letter:", error);
     throw new Error("Failed to generate cover letter. Please try again.");
@@ -134,26 +144,41 @@ export const generateEmailMessage = async (
           },
           {
             text: `
-              You are an experienced content writer.
-              OBJECTIVE: Write a personalized email/message to the hiring manager.
+              You are an expert career assistant.
+              OBJECTIVE: Write a personalized email application using a STRICT TEMPLATE based on the user's provided preference.
+
+              INPUT DATA:
+              1. Resume (Attached)
+              2. Job Description: ${jobDescription}
+
+              STRICT TEMPLATE TO FOLLOW:
               
-              CONTEXT:
-              - Job Description: ${jobDescription}
-              - The candidate has already written a cover letter.
-              
-              GUIDELINES:
-              - **Word Count**: STRICTLY around 70 words. Short and punchy.
-              - Tone: Refined, humanized, professional but approachable. Use simple words.
-              - Perspective: First person ("I").
-              - STRICTLY NO underscores ("___"). Use natural language.
-              - Purpose: To introduce the candidate and attach the resume/cover letter.
-              - Mention the company name if detected in the job description.
+              Subject: Expression of Interest: [Job Title] : [Total Years of Experience from Resume]+ Years of Exp | [Highest Degree from Resume] | [Candidate Name]
+
+              Hi [Hiring Manager Name or "Hiring Manager"]!
+
+              I am writing to express my interest in joining the [Department/Team Name inferred from JD] team at [Company Name].
+
+              I bring [Number] years of experience across [Summarize context of experience, e.g. startups and MNCs], backed by [Degree/Education], excelled in [Top 3-4 Key Skills/Achievements relevant to the job].
+
+              I am based in [Candidate Location] and available to join immediately. My profile is attached for your review, and I would welcome the opportunity to discuss.
+
+              Regards,
+
+              [Candidate Name] | [Candidate Phone Number] | LinkedIN
+
+              INSTRUCTIONS:
+              - Fill in the bracketed information using the Resume and Job Description.
+              - "LinkedIN" (spelled exactly so) at the end.
+              - Ensure the Subject Line is the very first line.
+              - Keep the layout exactly as shown.
+              - Do not include any meta text like "Here is the email".
             `,
           },
         ],
       },
       config: {
-        temperature: 0.7,
+        temperature: 0.3,
       },
     });
 
