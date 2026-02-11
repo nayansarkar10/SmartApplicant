@@ -18,9 +18,10 @@ import {
 
 import { FileUpload } from './components/FileUpload';
 import { Button } from './components/Button';
+import { ChatSection } from './components/ChatSection';
 import { LoadingOverlay } from './components/LoadingOverlay';
-import { generateCoverLetter, generateEmailMessage } from './services/geminiService';
-import { AppStep, ResumeFile } from './types';
+import { generateCoverLetter, generateEmailMessage, refineCoverLetterWithChat } from './services/geminiService';
+import { AppStep, ResumeFile, ChatMessage } from './types';
 
 const App: React.FC = () => {
   // State
@@ -36,6 +37,10 @@ const App: React.FC = () => {
   const [coverLetterSources, setCoverLetterSources] = useState<{ title: string; uri: string }[]>([]);
   const [emailMessage, setEmailMessage] = useState('');
   
+  // Chat State
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
   // Loading states
   const [isGeneratingCover, setIsGeneratingCover] = useState(false);
   const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
@@ -49,6 +54,7 @@ const App: React.FC = () => {
     if (!resume || !jobDescription.trim()) return;
     
     setIsGeneratingCover(true);
+    setChatMessages([]); // Reset chat on new generation
     try {
       const result = await generateCoverLetter(resume, jobDescription);
       setCoverLetter(result.text);
@@ -63,6 +69,41 @@ const App: React.FC = () => {
       alert("Something went wrong generating the cover letter.");
     } finally {
       setIsGeneratingCover(false);
+    }
+  };
+
+  const handleChatSubmit = async (message: string) => {
+    if (!resume) return;
+
+    const newHistory: ChatMessage[] = [...chatMessages, { role: 'user', text: message }];
+    setChatMessages(newHistory);
+    setIsChatLoading(true);
+
+    try {
+      const result = await refineCoverLetterWithChat(
+        resume,
+        jobDescription,
+        coverLetter,
+        chatMessages, // Pass history before new message
+        message
+      );
+
+      const botMessage: ChatMessage = {
+        role: 'model',
+        text: result.reply,
+        isUpdate: !!result.updatedCoverLetter
+      };
+
+      setChatMessages(prev => [...prev, botMessage]);
+
+      if (result.updatedCoverLetter) {
+        setCoverLetter(result.updatedCoverLetter);
+      }
+
+    } catch (error) {
+      setChatMessages(prev => [...prev, { role: 'model', text: "Sorry, I couldn't process that request. Please try again." }]);
+    } finally {
+      setIsChatLoading(false);
     }
   };
 
@@ -193,6 +234,7 @@ const App: React.FC = () => {
     setWeaknesses([]);
     setCoverLetterSources([]);
     setEmailMessage('');
+    setChatMessages([]);
     setStep(AppStep.INPUT);
   };
 
@@ -251,7 +293,7 @@ const App: React.FC = () => {
     const matchColorClass = getMatchColor(matchPercentage);
 
     return (
-      <div className="space-y-6 fade-in">
+      <div className="space-y-6 fade-in max-w-4xl mx-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-semibold text-gray-900">Your Application</h2>
           <div className="flex space-x-2">
@@ -324,10 +366,17 @@ const App: React.FC = () => {
             )}
           </div>
         </div>
-
+        
+        {/* Main Content Area */}
         <div className="space-y-4">
-           <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide">Drafted Cover Letter</h3>
-          <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 min-h-[300px] whitespace-pre-wrap leading-relaxed text-gray-700">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide">Drafted Cover Letter</h3>
+            <div className="flex gap-2">
+               {/* Small actions can go here */}
+            </div>
+          </div>
+          
+          <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 min-h-[400px] whitespace-pre-wrap leading-relaxed text-gray-700 font-serif">
             {coverLetter}
           </div>
           
@@ -352,7 +401,8 @@ const App: React.FC = () => {
           )}
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
+        {/* Actions Bar */}
+        <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-100">
           <Button onClick={handleDownloadPDF} variant="outline" className="flex-1">
             <Download className="w-4 h-4 mr-2" /> Download PDF
           </Button>
@@ -367,6 +417,15 @@ const App: React.FC = () => {
           <Button onClick={handleGenerateEmail} className="flex-1 bg-black text-white hover:bg-gray-800" disabled={isGeneratingEmail}>
             Draft Email <Mail className="w-4 h-4 ml-2" />
           </Button>
+        </div>
+
+        {/* Chat Section at the bottom */}
+        <div className="pt-8 mt-8 border-t border-gray-100">
+            <ChatSection 
+              messages={chatMessages}
+              onSendMessage={handleChatSubmit}
+              isLoading={isChatLoading}
+            />
         </div>
       </div>
     );
@@ -413,8 +472,8 @@ const App: React.FC = () => {
         message={isGeneratingCover ? "Analyzing fit & Writing..." : "Drafting Message..."} 
       />
       
-      <div className="max-w-3xl mx-auto px-6 py-12">
-        <header className="flex items-center justify-between mb-16">
+      <div className="max-w-6xl mx-auto px-6 py-12">
+        <header className="flex items-center justify-between mb-16 max-w-3xl mx-auto">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
               <FileText className="w-5 h-5 text-white" />
@@ -438,13 +497,13 @@ const App: React.FC = () => {
           )}
         </header>
 
-        <main>
+        <main className={step === AppStep.INPUT ? "max-w-3xl mx-auto" : "max-w-6xl mx-auto"}>
           {step === AppStep.INPUT && renderStep1()}
           {step === AppStep.COVER_LETTER && renderStep2()}
           {step === AppStep.EMAIL_MESSAGE && renderStep3()}
         </main>
         
-        <footer className="mt-20 text-center text-sm text-gray-400">
+        <footer className="mt-20 text-center text-sm text-gray-400 max-w-3xl mx-auto">
           <p>© {new Date().getFullYear()} AgentArtsy Job Tools. Powered by Gemini.</p>
         </footer>
       </div>

@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { ResumeFile } from "../types";
+import { ResumeFile, ChatMessage } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -73,6 +73,7 @@ export const generateCoverLetter = async (
                 [Candidate Mobile Number]
 
               - **Tone**: Professional, confident, yet human. First person ("I").
+              - **Style**: Do NOT use dashes (-) to separate thoughts or sentences. Use proper punctuation (commas, periods) instead.
             `,
           },
         ],
@@ -123,6 +124,84 @@ export const generateCoverLetter = async (
   } catch (error) {
     console.error("Error generating cover letter:", error);
     throw new Error("Failed to generate cover letter. Please try again.");
+  }
+};
+
+export interface ChatResponse {
+  reply: string;
+  updatedCoverLetter: string | null;
+}
+
+export const refineCoverLetterWithChat = async (
+  resume: ResumeFile,
+  jobDescription: string,
+  currentCoverLetter: string,
+  chatHistory: ChatMessage[],
+  userMessage: string
+): Promise<ChatResponse> => {
+  try {
+    // Construct a context string from history
+    const historyContext = chatHistory.map(msg => `${msg.role.toUpperCase()}: ${msg.text}`).join('\n');
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: resume.type,
+              data: resume.data,
+            },
+          },
+          {
+            text: `
+              You are a helpful career assistant. You are helping a user refine their cover letter.
+              
+              CONTEXT:
+              1. Job Description: ${jobDescription}
+              2. Current Cover Letter: 
+              """
+              ${currentCoverLetter}
+              """
+              3. Chat History:
+              ${historyContext}
+
+              USER REQUEST: "${userMessage}"
+
+              TASK:
+              - Answer the user's request.
+              - If the user asks to modify the cover letter (e.g., "Change company name", "Make it funnier", "Fix typo"), you MUST provide the FULL updated cover letter text in the 'updatedCoverLetter' field.
+              - If the user just asks a question (e.g., "Is this good?"), provide a 'reply' but leave 'updatedCoverLetter' as null.
+              - **Constraint**: If you regenerate the cover letter, do NOT use dashes (-) to separate sentences. Use proper punctuation.
+
+              OUTPUT FORMAT: JSON
+            `,
+          },
+        ],
+      },
+      config: {
+        temperature: 0.5,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            reply: { type: Type.STRING, description: "Your conversational response to the user." },
+            updatedCoverLetter: { type: Type.STRING, description: "The full updated cover letter text if changes were made, or null if not.", nullable: true },
+          },
+          required: ["reply"]
+        }
+      },
+    });
+
+    const json = JSON.parse(response.text || "{}");
+    return {
+      reply: json.reply || "I've processed your request.",
+      updatedCoverLetter: json.updatedCoverLetter || null
+    };
+
+  } catch (error) {
+    console.error("Error chatting:", error);
+    throw new Error("Failed to process chat request.");
   }
 };
 
