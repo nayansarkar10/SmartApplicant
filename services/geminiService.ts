@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { ResumeFile, ChatMessage } from "../types";
+import { ResumeFile, ChatMessage, AppStep } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -129,13 +129,14 @@ export const generateCoverLetter = async (
 
 export interface ChatResponse {
   reply: string;
-  updatedCoverLetter: string | null;
+  updatedContent: string | null;
 }
 
-export const refineCoverLetterWithChat = async (
-  resume: ResumeFile,
+export const processChatInteraction = async (
+  step: AppStep,
+  resume: ResumeFile | null,
   jobDescription: string,
-  currentCoverLetter: string,
+  currentContent: string,
   chatHistory: ChatMessage[],
   userMessage: string
 ): Promise<ChatResponse> => {
@@ -143,42 +144,92 @@ export const refineCoverLetterWithChat = async (
     // Construct a context string from history
     const historyContext = chatHistory.map(msg => `${msg.role.toUpperCase()}: ${msg.text}`).join('\n');
 
+    let systemInstruction = "";
+    let contextDescription = "";
+
+    if (step === AppStep.INPUT) {
+      systemInstruction = `
+        You are a helpful career assistant helping the user prepare their job application.
+        The user is currently entering the Job Description.
+        
+        TASK:
+        - Answer questions about the resume (if provided) or job description.
+        - If the user asks to format, fix, or summarize the Job Description input, provide the full updated text in 'updatedContent'.
+        - Otherwise, 'updatedContent' should be null.
+      `;
+      contextDescription = `
+        CONTEXT:
+        1. Resume: ${resume ? "Attached" : "Not uploaded yet"}
+        2. Current Job Description Input: 
+        """
+        ${currentContent}
+        """
+      `;
+    } else if (step === AppStep.COVER_LETTER) {
+      systemInstruction = `
+        You are a helpful career assistant. You are helping a user refine their cover letter.
+        
+        TASK:
+        - Answer the user's request.
+        - If the user asks to modify the cover letter (e.g., "Change company name", "Make it funnier", "Fix typo"), you MUST provide the FULL updated cover letter text in the 'updatedContent' field.
+        - If the user just asks a question (e.g., "Is this good?"), provide a 'reply' but leave 'updatedContent' as null.
+        - **Constraint**: If you regenerate the cover letter, do NOT use dashes (-) to separate sentences. Use proper punctuation.
+      `;
+      contextDescription = `
+        CONTEXT:
+        1. Job Description: ${jobDescription}
+        2. Current Cover Letter: 
+        """
+        ${currentContent}
+        """
+      `;
+    } else if (step === AppStep.EMAIL_MESSAGE) {
+      systemInstruction = `
+        You are a helpful career assistant. You are helping a user refine their hiring manager email.
+        
+        TASK:
+        - Answer the user's request.
+        - If the user asks to modify the email message, provide the FULL updated text in 'updatedContent'.
+      `;
+      contextDescription = `
+        CONTEXT:
+        1. Job Description: ${jobDescription}
+        2. Current Email Draft: 
+        """
+        ${currentContent}
+        """
+      `;
+    }
+
+    const parts: any[] = [
+      {
+        text: `
+          ${systemInstruction}
+          
+          ${contextDescription}
+          
+          3. Chat History:
+          ${historyContext}
+
+          USER REQUEST: "${userMessage}"
+
+          OUTPUT FORMAT: JSON with 'reply' and 'updatedContent'.
+        `,
+      }
+    ];
+
+    if (resume) {
+      parts.unshift({
+        inlineData: {
+          mimeType: resume.type,
+          data: resume.data,
+        },
+      });
+    }
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: resume.type,
-              data: resume.data,
-            },
-          },
-          {
-            text: `
-              You are a helpful career assistant. You are helping a user refine their cover letter.
-              
-              CONTEXT:
-              1. Job Description: ${jobDescription}
-              2. Current Cover Letter: 
-              """
-              ${currentCoverLetter}
-              """
-              3. Chat History:
-              ${historyContext}
-
-              USER REQUEST: "${userMessage}"
-
-              TASK:
-              - Answer the user's request.
-              - If the user asks to modify the cover letter (e.g., "Change company name", "Make it funnier", "Fix typo"), you MUST provide the FULL updated cover letter text in the 'updatedCoverLetter' field.
-              - If the user just asks a question (e.g., "Is this good?"), provide a 'reply' but leave 'updatedCoverLetter' as null.
-              - **Constraint**: If you regenerate the cover letter, do NOT use dashes (-) to separate sentences. Use proper punctuation.
-
-              OUTPUT FORMAT: JSON
-            `,
-          },
-        ],
-      },
+      contents: { parts },
       config: {
         temperature: 0.5,
         responseMimeType: "application/json",
@@ -186,7 +237,7 @@ export const refineCoverLetterWithChat = async (
           type: Type.OBJECT,
           properties: {
             reply: { type: Type.STRING, description: "Your conversational response to the user." },
-            updatedCoverLetter: { type: Type.STRING, description: "The full updated cover letter text if changes were made, or null if not.", nullable: true },
+            updatedContent: { type: Type.STRING, description: "The full updated text content if changes were made, or null if not.", nullable: true },
           },
           required: ["reply"]
         }
@@ -196,7 +247,7 @@ export const refineCoverLetterWithChat = async (
     const json = JSON.parse(response.text || "{}");
     return {
       reply: json.reply || "I've processed your request.",
-      updatedCoverLetter: json.updatedCoverLetter || null
+      updatedContent: json.updatedContent || null
     };
 
   } catch (error) {

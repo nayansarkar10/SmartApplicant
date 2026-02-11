@@ -7,9 +7,15 @@ interface ChatSectionProps {
   messages: ChatMessage[];
   onSendMessage: (message: string) => void;
   isLoading: boolean;
+  placeholder?: string;
 }
 
-export const ChatSection: React.FC<ChatSectionProps> = ({ messages, onSendMessage, isLoading }) => {
+export const ChatSection: React.FC<ChatSectionProps> = ({ 
+  messages, 
+  onSendMessage, 
+  isLoading, 
+  placeholder 
+}) => {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -56,7 +62,7 @@ export const ChatSection: React.FC<ChatSectionProps> = ({ messages, onSendMessag
                 {msg.isUpdate && (
                   <div className="mt-2 pt-2 border-t border-gray-100 text-xs font-medium text-green-600 flex items-center">
                     <CheckCircle className="w-3 h-3 mr-1" />
-                    Cover Letter Updated
+                    Updated Content
                   </div>
                 )}
               </div>
@@ -88,7 +94,7 @@ export const ChatSection: React.FC<ChatSectionProps> = ({ messages, onSendMessag
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask AI to refine details, tone, or specific sections..."
+                placeholder={placeholder || "Ask AI to refine details, tone, or specific sections..."}
                 disabled={isLoading}
                 className="w-full pl-10 pr-12 py-3 bg-gray-50 border border-transparent rounded-lg focus:bg-white focus:border-gray-200 focus:ring-4 focus:ring-gray-100 transition-all text-sm outline-none"
             />

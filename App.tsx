@@ -20,7 +20,7 @@ import { FileUpload } from './components/FileUpload';
 import { Button } from './components/Button';
 import { ChatSection } from './components/ChatSection';
 import { LoadingOverlay } from './components/LoadingOverlay';
-import { generateCoverLetter, generateEmailMessage, refineCoverLetterWithChat } from './services/geminiService';
+import { generateCoverLetter, generateEmailMessage, processChatInteraction } from './services/geminiService';
 import { AppStep, ResumeFile, ChatMessage } from './types';
 
 const App: React.FC = () => {
@@ -73,17 +73,24 @@ const App: React.FC = () => {
   };
 
   const handleChatSubmit = async (message: string) => {
-    if (!resume) return;
-
+    // Only require resume for steps 2/3 or if user wants analysis in step 1. 
+    // For Step 1, resume might be null if they are just typing JD. But let's pass null if so.
+    
     const newHistory: ChatMessage[] = [...chatMessages, { role: 'user', text: message }];
     setChatMessages(newHistory);
     setIsChatLoading(true);
 
+    let currentContent = '';
+    if (step === AppStep.INPUT) currentContent = jobDescription;
+    else if (step === AppStep.COVER_LETTER) currentContent = coverLetter;
+    else if (step === AppStep.EMAIL_MESSAGE) currentContent = emailMessage;
+
     try {
-      const result = await refineCoverLetterWithChat(
+      const result = await processChatInteraction(
+        step,
         resume,
         jobDescription,
-        coverLetter,
+        currentContent,
         chatMessages, // Pass history before new message
         message
       );
@@ -91,13 +98,15 @@ const App: React.FC = () => {
       const botMessage: ChatMessage = {
         role: 'model',
         text: result.reply,
-        isUpdate: !!result.updatedCoverLetter
+        isUpdate: !!result.updatedContent
       };
 
       setChatMessages(prev => [...prev, botMessage]);
 
-      if (result.updatedCoverLetter) {
-        setCoverLetter(result.updatedCoverLetter);
+      if (result.updatedContent) {
+        if (step === AppStep.INPUT) setJobDescription(result.updatedContent);
+        else if (step === AppStep.COVER_LETTER) setCoverLetter(result.updatedContent);
+        else if (step === AppStep.EMAIL_MESSAGE) setEmailMessage(result.updatedContent);
       }
 
     } catch (error) {
@@ -111,6 +120,7 @@ const App: React.FC = () => {
     if (!resume || !jobDescription) return;
     
     setIsGeneratingEmail(true);
+    setChatMessages([]); // Reset chat for email step
     try {
       const result = await generateEmailMessage(resume, jobDescription, coverLetter);
       setEmailMessage(result);
@@ -253,6 +263,16 @@ const App: React.FC = () => {
   // Render Methods
   const renderStep1 = () => (
     <div className="space-y-8 fade-in">
+      {/* Chat Section for Step 1 - Top Position */}
+      <div className="mb-6">
+        <ChatSection 
+          messages={chatMessages}
+          onSendMessage={handleChatSubmit}
+          isLoading={isChatLoading}
+          placeholder="Ask AI to help analyze requirements or format text..."
+        />
+      </div>
+
       <div className="space-y-2">
         <h2 className="text-2xl font-semibold text-gray-900">Let's start with the basics</h2>
         <p className="text-gray-500">Upload your resume and paste the job details.</p>
@@ -419,12 +439,13 @@ const App: React.FC = () => {
           </Button>
         </div>
 
-        {/* Chat Section at the bottom */}
+        {/* Chat Section for Step 2 */}
         <div className="pt-8 mt-8 border-t border-gray-100">
             <ChatSection 
               messages={chatMessages}
               onSendMessage={handleChatSubmit}
               isLoading={isChatLoading}
+              placeholder="Ask AI to refine details, tone, or specific sections..."
             />
         </div>
       </div>
@@ -435,7 +456,10 @@ const App: React.FC = () => {
     <div className="space-y-8 fade-in">
        <div className="flex items-center space-x-4 mb-6">
         <button 
-          onClick={() => setStep(AppStep.COVER_LETTER)}
+          onClick={() => {
+            setStep(AppStep.COVER_LETTER);
+            setChatMessages([]); // Optional: clear chat when going back or keep it. Clearing to avoid confusion.
+          }}
           className="p-2 hover:bg-gray-100 rounded-full transition-colors"
         >
           <ChevronLeft className="w-5 h-5 text-gray-600" />
@@ -460,6 +484,16 @@ const App: React.FC = () => {
             <Button onClick={handleResetForNewJob} variant="outline" className="flex-1">
               Start New Application
             </Button>
+         </div>
+
+         {/* Chat Section for Step 3 */}
+         <div className="pt-8 mt-8 border-t border-gray-100">
+            <ChatSection 
+              messages={chatMessages}
+              onSendMessage={handleChatSubmit}
+              isLoading={isChatLoading}
+              placeholder="Ask AI to shorten, lengthen, or change the tone..."
+            />
          </div>
       </div>
     </div>
