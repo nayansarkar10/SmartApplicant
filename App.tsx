@@ -20,7 +20,7 @@ import { FileUpload } from './components/FileUpload';
 import { Button } from './components/Button';
 import { ChatSection } from './components/ChatSection';
 import { LoadingOverlay } from './components/LoadingOverlay';
-import { generateCoverLetter, generateEmailMessage, processChatInteraction } from './services/geminiService';
+import { generateCoverLetter, generateEmailMessage, processChatInteraction, generateAtsResume } from './services/geminiService';
 import { AppStep, ResumeFile, ChatMessage } from './types';
 
 const App: React.FC = () => {
@@ -36,6 +36,7 @@ const App: React.FC = () => {
   const [weaknesses, setWeaknesses] = useState<string[]>([]);
   const [coverLetterSources, setCoverLetterSources] = useState<{ title: string; uri: string }[]>([]);
   const [emailMessage, setEmailMessage] = useState('');
+  const [atsResume, setAtsResume] = useState('');
   
   // Chat State
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -44,10 +45,12 @@ const App: React.FC = () => {
   // Loading states
   const [isGeneratingCover, setIsGeneratingCover] = useState(false);
   const [isGeneratingEmail, setIsGeneratingEmail] = useState(false);
+  const [isGeneratingAts, setIsGeneratingAts] = useState(false);
   
   // UI Feedback states
   const [copiedCover, setCopiedCover] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
+  const [copiedAts, setCopiedAts] = useState(false);
 
   // Handlers
   const handleGenerateCoverLetter = async () => {
@@ -84,6 +87,7 @@ const App: React.FC = () => {
     if (step === AppStep.INPUT) currentContent = jobDescription;
     else if (step === AppStep.COVER_LETTER) currentContent = coverLetter;
     else if (step === AppStep.EMAIL_MESSAGE) currentContent = emailMessage;
+    else if (step === AppStep.ATS_RESUME) currentContent = atsResume;
 
     try {
       const result = await processChatInteraction(
@@ -107,6 +111,7 @@ const App: React.FC = () => {
         if (step === AppStep.INPUT) setJobDescription(result.updatedContent);
         else if (step === AppStep.COVER_LETTER) setCoverLetter(result.updatedContent);
         else if (step === AppStep.EMAIL_MESSAGE) setEmailMessage(result.updatedContent);
+        else if (step === AppStep.ATS_RESUME) setAtsResume(result.updatedContent);
       }
 
     } catch (error) {
@@ -129,6 +134,22 @@ const App: React.FC = () => {
       alert("Something went wrong generating the email.");
     } finally {
       setIsGeneratingEmail(false);
+    }
+  };
+
+  const handleGenerateAtsResume = async () => {
+    if (!resume || !jobDescription) return;
+    
+    setIsGeneratingAts(true);
+    setChatMessages([]); // Reset chat for ATS resume step
+    try {
+      const result = await generateAtsResume(resume, jobDescription);
+      setAtsResume(result);
+      setStep(AppStep.ATS_RESUME);
+    } catch (error) {
+      alert("Something went wrong generating the ATS resume.");
+    } finally {
+      setIsGeneratingAts(false);
     }
   };
 
@@ -223,9 +244,75 @@ const App: React.FC = () => {
     doc.save(`${safeCompanyName}.pdf`);
   };
 
-  const copyToClipboard = async (text: string, isEmail: boolean) => {
+  const handleDownloadAtsResume = () => {
+    const candidateName = prompt("Enter your name for the file:", "CandidateName");
+    if (!candidateName) return;
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const marginLeft = 20;
+    const marginTop = 20;
+    const marginBottom = 20;
+    const contentWidth = 170;
+    const pageHeight = 297;
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(10, 10, 10);
+
+    const rawBlocks = atsResume.split(/\n/);
+    
+    let currentY = marginTop;
+    const lineHeightFactor = 1.5; 
+    const defaultLineHeightFactor = 1.15;
+
+    rawBlocks.forEach((block) => {
+      if (!block.trim()) {
+        currentY += 4; // Add some space for empty lines
+        return;
+      }
+
+      let textToPrint = block.replace(/[*#]/g, '').trim(); // Basic markdown cleanup
+
+      // Use splitTextToSize to handle long lines that exceed contentWidth
+      const lines = doc.splitTextToSize(textToPrint, contentWidth);
+
+      lines.forEach((line: string) => {
+        const dims = doc.getTextDimensions(line, {
+          fontSize: 10
+        });
+        
+        const blockHeight = dims.h * (lineHeightFactor / defaultLineHeightFactor);
+
+        if (currentY + blockHeight > pageHeight - marginBottom) {
+          doc.addPage();
+          currentY = marginTop;
+        }
+
+        doc.text(line, marginLeft, currentY, {
+          align: "left",
+          lineHeightFactor: lineHeightFactor,
+          baseline: 'top'
+        });
+
+        currentY += blockHeight + 2;
+      });
+    });
+    
+    const safeName = candidateName.replace(/[^a-zA-Z0-9]/g, '_');
+    doc.save(`${safeName}_Resume.pdf`);
+  };
+
+  const copyToClipboard = async (text: string, isEmail: boolean, isAts: boolean = false) => {
     await navigator.clipboard.writeText(text);
-    if (isEmail) {
+    if (isAts) {
+      setCopiedAts(true);
+      setTimeout(() => setCopiedAts(false), 2000);
+    } else if (isEmail) {
       setCopiedEmail(true);
       setTimeout(() => setCopiedEmail(false), 2000);
     } else {
@@ -437,6 +524,9 @@ const App: React.FC = () => {
           <Button onClick={handleGenerateEmail} className="flex-1 bg-black text-white hover:bg-gray-800" disabled={isGeneratingEmail}>
             Draft Email <Mail className="w-4 h-4 ml-2" />
           </Button>
+          <Button onClick={handleGenerateAtsResume} className="flex-1 bg-blue-600 text-white hover:bg-blue-700" disabled={isGeneratingAts}>
+            ATS Resume <FileText className="w-4 h-4 ml-2" />
+          </Button>
         </div>
 
         {/* Chat Section for Step 2 */}
@@ -499,11 +589,58 @@ const App: React.FC = () => {
     </div>
   );
 
+  const renderStep4 = () => (
+    <div className="space-y-8 fade-in">
+       <div className="flex items-center space-x-4 mb-6">
+        <button 
+          onClick={() => {
+            setStep(AppStep.COVER_LETTER);
+            setChatMessages([]);
+          }}
+          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+        >
+          <ChevronLeft className="w-5 h-5 text-gray-600" />
+        </button>
+        <h2 className="text-2xl font-semibold text-gray-900">ATS Optimized Resume</h2>
+      </div>
+
+      <div className="w-full max-w-4xl mx-auto space-y-4">
+         <div className="bg-white p-8 rounded-xl shadow-md border border-gray-200 min-h-[400px] whitespace-pre-wrap leading-relaxed text-gray-800 text-sm font-mono relative">
+             {atsResume}
+         </div>
+         
+         <div className="flex flex-col sm:flex-row gap-3 pt-4">
+           <Button 
+              onClick={() => copyToClipboard(atsResume, false, true)} 
+              variant="primary" 
+              className="flex-1"
+            >
+              {copiedAts ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
+              {copiedAts ? 'Copied to Clipboard' : 'Copy Resume'}
+            </Button>
+            <Button onClick={handleDownloadAtsResume} variant="outline" className="flex-1">
+              <Download className="w-4 h-4 mr-2" /> Download PDF
+            </Button>
+         </div>
+
+         {/* Chat Section for Step 4 */}
+         <div className="pt-8 mt-8 border-t border-gray-100">
+            <ChatSection 
+              messages={chatMessages}
+              onSendMessage={handleChatSubmit}
+              isLoading={isChatLoading}
+              placeholder="Ask AI to refine keywords, rephrase experience, or adjust formatting..."
+            />
+         </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[#fcfcfc] text-gray-900 font-sans selection:bg-gray-200">
       <LoadingOverlay 
-        isVisible={isGeneratingCover || isGeneratingEmail} 
-        message={isGeneratingCover ? "Analyzing fit & Writing..." : "Drafting Message..."} 
+        isVisible={isGeneratingCover || isGeneratingEmail || isGeneratingAts} 
+        message={isGeneratingCover ? "Analyzing fit & Writing..." : isGeneratingAts ? "Optimizing Resume for ATS..." : "Drafting Message..."} 
       />
       
       <div className="max-w-6xl mx-auto px-6 py-12">
@@ -535,6 +672,7 @@ const App: React.FC = () => {
           {step === AppStep.INPUT && renderStep1()}
           {step === AppStep.COVER_LETTER && renderStep2()}
           {step === AppStep.EMAIL_MESSAGE && renderStep3()}
+          {step === AppStep.ATS_RESUME && renderStep4()}
         </main>
         
         <footer className="mt-20 text-center text-sm text-gray-400 max-w-3xl mx-auto">

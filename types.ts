@@ -19,4 +19,5 @@ export enum AppStep {
   INPUT = 1,
   COVER_LETTER = 2,
   EMAIL_MESSAGE = 3,
+  ATS_RESUME = 4,
 }

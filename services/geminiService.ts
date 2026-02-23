@@ -199,6 +199,22 @@ export const processChatInteraction = async (
         ${currentContent}
         """
       `;
+    } else if (step === AppStep.ATS_RESUME) {
+      systemInstruction = `
+        You are an expert ATS resume optimizer. You are helping a user refine their ATS-friendly resume.
+        
+        TASK:
+        - Answer the user's request.
+        - If the user asks to modify the resume, provide the FULL updated resume text in 'updatedContent' in Markdown format.
+      `;
+      contextDescription = `
+        CONTEXT:
+        1. Job Description: ${jobDescription}
+        2. Current ATS Resume: 
+        """
+        ${currentContent}
+        """
+      `;
     }
 
     const parts: any[] = [
@@ -316,5 +332,58 @@ export const generateEmailMessage = async (
   } catch (error) {
     console.error("Error generating email:", error);
     throw new Error("Failed to generate email message.");
+  }
+};
+
+export const generateAtsResume = async (
+  resume: ResumeFile,
+  jobDescription: string
+): Promise<string> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-pro-preview',
+      contents: {
+        parts: [
+          {
+            inlineData: {
+              mimeType: resume.type,
+              data: resume.data,
+            },
+          },
+          {
+            text: `
+              You are an expert ATS (Applicant Tracking System) optimizer and resume writer.
+              
+              INPUT:
+              1. RESUME (Attached)
+              2. JOB DESCRIPTION (Text below)
+              
+              JOB DESCRIPTION:
+              ${jobDescription}
+
+              TASK:
+              Rewrite and optimize the attached resume to be highly ATS-friendly for the provided job description.
+              
+              GUIDELINES:
+              - Use exact keywords from the job description.
+              - Maintain the original word count as closely as possible.
+              - Keep the formatting simple and standard (e.g., Contact Info, Summary, Work Experience, Education, Skills).
+              - Preserve all original hyperlinks (e.g., LinkedIn, Portfolio) in Markdown format.
+              - Ensure the semantic meaning of the original experience is kept but aligned with the job description.
+              - Output the optimized resume in clean Markdown format.
+              - Do not include any introductory or concluding remarks, just the resume content.
+            `,
+          },
+        ],
+      },
+      config: {
+        temperature: 0.4,
+      },
+    });
+
+    return response.text || "Failed to generate ATS resume.";
+  } catch (error) {
+    console.error("Error generating ATS resume:", error);
+    throw new Error("Failed to generate ATS resume.");
   }
 };
