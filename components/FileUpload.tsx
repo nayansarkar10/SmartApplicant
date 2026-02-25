@@ -11,8 +11,13 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, selectedFi
   const [isDragging, setIsDragging] = useState(false);
 
   const processFile = (file: File) => {
-    if (file.type !== 'application/pdf') {
-      alert('Currently only PDF resumes are supported for best analysis.');
+    const validTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+
+    if (!validTypes.includes(file.type)) {
+      alert('Currently only PDF and DOCX resumes are supported for best analysis.');
       return;
     }
 
@@ -78,7 +83,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, selectedFi
     >
       <input
         type="file"
-        accept=".pdf"
+        accept=".pdf,.docx"
         onChange={handleFileChange}
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
       />
@@ -88,7 +93,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect, selectedFi
         </div>
         <div>
           <p className="text-sm font-medium text-gray-900">Upload your Resume</p>
-          <p className="text-xs text-gray-500 mt-1">PDF format supported</p>
+          <p className="text-xs text-gray-500 mt-1">PDF or DOCX format supported</p>
         </div>
       </div>
     </div>

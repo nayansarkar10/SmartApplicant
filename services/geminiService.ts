@@ -34,7 +34,7 @@ export const generateCoverLetter = async (
               You are an expert career coach and professional writer. 
               
               INPUT:
-              1. RESUME (PDF Attached)
+              1. RESUME (Attached)
               2. JOB DESCRIPTION (Text below)
               
               JOB DESCRIPTION:
@@ -364,12 +364,36 @@ export const generateAtsResume = async (
               TASK:
               Rewrite and optimize the attached resume to be highly ATS-friendly for the provided job description.
               
-              GUIDELINES:
-              - Use exact keywords from the job description.
-              - Maintain the original word count as closely as possible.
-              - Keep the formatting simple and standard (e.g., Contact Info, Summary, Work Experience, Education, Skills).
-              - Preserve all original hyperlinks (e.g., LinkedIn, Portfolio) in Markdown format.
-              - Ensure the semantic meaning of the original experience is kept but aligned with the job description.
+              STRICT FORMATTING AND CONTENT GUIDELINES:
+              
+              1. HEADER: Format exactly like this using the candidate's details from the resume:
+              # [CANDIDATE NAME]
+              [Job Title/Headline]
+              Address: [Address] | Mobile: [Mobile] | Email: [Email]
+              Social: [LinkedIn Link] | [GitHub Link]
+              
+              (Example:
+              # NAYAN SARKAR
+              Marketing & Business Development
+              Address: Pune, IN | Mobile: +91 6009315429 | Email: nayan.sarkar_10@yahoo.com 
+              Social: [LinkedIn](https://www.linkedin.com/in/nayan-sarkar-28495610a/) | [GitHub](https://github.com/nayansarkar10/)
+              )
+              
+              2. # PROFILE
+              Keep the original profile/summary from the resume. Do not change it.
+              
+              3. # SKILLS
+              Keep the default skills from the resume, and ADD new skills based on the job description. Group them based on category.
+              
+              4. # WORK EXPERIENCE
+              Do not change anything from the original resume. Keep it exactly as is.
+              
+              5. # Education
+              Do not change anything from the original resume. Keep it exactly as is.
+              
+              6. # Language & Hobbies
+              Do not change anything from the original resume. Keep it exactly as is.
+              
               - Output the optimized resume in clean Markdown format.
               - Do not include any introductory or concluding remarks, just the resume content.
             `,
