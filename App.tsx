@@ -245,66 +245,80 @@ const App: React.FC = () => {
   };
 
   const handleDownloadAtsResume = () => {
+    if (!atsResume) {
+      alert("No resume content to download.");
+      return;
+    }
+
     const candidateName = prompt("Enter your name for the file:", "CandidateName");
     if (!candidateName) return;
 
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    });
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
 
-    const marginLeft = 20;
-    const marginTop = 20;
-    const marginBottom = 20;
-    const contentWidth = 170;
-    const pageHeight = 297;
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(10, 10, 10);
+      const marginLeft = 20;
+      const marginTop = 20;
+      const marginBottom = 20;
+      const contentWidth = 170;
+      const pageHeight = 297;
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
 
-    const rawBlocks = atsResume.split(/\n/);
-    
-    let currentY = marginTop;
-    const lineHeightFactor = 1.5; 
-    const defaultLineHeightFactor = 1.15;
+      // Filter out non-ASCII characters to prevent jsPDF errors with default fonts
+      // Replace bullets and other common chars
+      const cleanContent = atsResume
+        .replace(/•/g, '-')
+        .replace(/[^\x00-\x7F]/g, "");
 
-    rawBlocks.forEach((block) => {
-      if (!block.trim()) {
-        currentY += 4; // Add some space for empty lines
-        return;
-      }
+      const rawBlocks = cleanContent.split(/\n/);
+      
+      let currentY = marginTop;
+      const lineHeight = 5; // Approx 5mm per line for 10pt font
 
-      let textToPrint = block.replace(/[*#]/g, '').trim(); // Basic markdown cleanup
+      rawBlocks.forEach((block) => {
+        // Remove markdown syntax for cleaner PDF
+        let textToPrint = block
+          .replace(/\*\*/g, '') // Remove bold markers
+          .replace(/#/g, '')    // Remove header markers
+          .trim();
 
-      // Use splitTextToSize to handle long lines that exceed contentWidth
-      const lines = doc.splitTextToSize(textToPrint, contentWidth);
-
-      lines.forEach((line: string) => {
-        const dims = doc.getTextDimensions(line, {
-          fontSize: 10
-        });
-        
-        const blockHeight = dims.h * (lineHeightFactor / defaultLineHeightFactor);
-
-        if (currentY + blockHeight > pageHeight - marginBottom) {
-          doc.addPage();
-          currentY = marginTop;
+        if (!textToPrint) {
+          currentY += lineHeight; 
+          return;
         }
 
-        doc.text(line, marginLeft, currentY, {
-          align: "left",
-          lineHeightFactor: lineHeightFactor,
-          baseline: 'top'
-        });
+        const lines = doc.splitTextToSize(textToPrint, contentWidth);
 
-        currentY += blockHeight + 2;
+        lines.forEach((line: string) => {
+          if (currentY + lineHeight > pageHeight - marginBottom) {
+            doc.addPage();
+            currentY = marginTop;
+          }
+
+          doc.text(line, marginLeft, currentY, {
+            baseline: 'top'
+          });
+          currentY += lineHeight;
+        });
+        
+        // Add extra spacing after blocks that were likely headers
+        if (block.trim().startsWith('#')) {
+             currentY += 2;
+        }
       });
-    });
-    
-    const safeName = candidateName.replace(/[^a-zA-Z0-9]/g, '_');
-    doc.save(`${safeName}_Resume.pdf`);
+      
+      const safeName = candidateName.replace(/[^a-zA-Z0-9]/g, '_');
+      doc.save(`${safeName}_Resume.pdf`);
+    } catch (error) {
+      console.error("PDF Generation failed:", error);
+      alert("Could not generate PDF. Please try again.");
+    }
   };
 
   const copyToClipboard = async (text: string, isEmail: boolean, isAts: boolean = false) => {
