@@ -245,79 +245,71 @@ const App: React.FC = () => {
   };
 
   const handleDownloadAtsResume = () => {
-    if (!atsResume) {
-      alert("No resume content to download.");
+    if (!atsResume || atsResume.trim().length === 0) {
+      alert("Please generate the ATS resume first before downloading.");
       return;
     }
 
-    const candidateName = prompt("Enter your name for the file:", "CandidateName");
-    if (!candidateName) return;
+    let candidateName = "Candidate";
+    try {
+      const input = prompt("Enter your name for the file:", "CandidateName");
+      if (input === null) return; // User cancelled
+      if (input) candidateName = input;
+    } catch (e) {
+      console.error("Prompt error:", e);
+    }
 
     try {
+      // Create new document
       const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4'
       });
 
-      const marginLeft = 20;
-      const marginTop = 20;
-      const marginBottom = 20;
-      const contentWidth = 170;
-      const pageHeight = 297;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const maxWidth = pageWidth - (margin * 2);
       
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
+      doc.setFontSize(11);
       doc.setTextColor(0, 0, 0);
 
-      // Filter out non-ASCII characters to prevent jsPDF errors with default fonts
-      // Replace bullets and other common chars
-      const cleanContent = atsResume
-        .replace(/•/g, '-')
-        .replace(/[^\x00-\x7F]/g, "");
+      // Clean text: 
+      // 1. Replace tabs with spaces
+      // 2. Replace bullets with dashes
+      // 3. Remove bold/header markdown markers
+      // 4. Strip non-printable characters (keep newlines)
+      const cleanText = atsResume
+        .replace(/\t/g, "  ")
+        .replace(/•/g, "-")
+        .replace(/\*\*/g, "")
+        .replace(/#/g, "")
+        .replace(/[^\x20-\x7E\n\r]/g, "");
 
-      const rawBlocks = cleanContent.split(/\n/);
-      
-      let currentY = marginTop;
-      const lineHeight = 5; // Approx 5mm per line for 10pt font
+      // Split text into lines that fit the page width
+      const lines = doc.splitTextToSize(cleanText, maxWidth);
 
-      rawBlocks.forEach((block) => {
-        // Remove markdown syntax for cleaner PDF
-        let textToPrint = block
-          .replace(/\*\*/g, '') // Remove bold markers
-          .replace(/#/g, '')    // Remove header markers
-          .trim();
+      let cursorY = margin;
+      const lineHeight = 6; // mm
 
-        if (!textToPrint) {
-          currentY += lineHeight; 
-          return;
+      // Loop through lines and add pages as needed
+      for (let i = 0; i < lines.length; i++) {
+        if (cursorY + lineHeight > pageHeight - margin) {
+          doc.addPage();
+          cursorY = margin;
         }
-
-        const lines = doc.splitTextToSize(textToPrint, contentWidth);
-
-        lines.forEach((line: string) => {
-          if (currentY + lineHeight > pageHeight - marginBottom) {
-            doc.addPage();
-            currentY = marginTop;
-          }
-
-          doc.text(line, marginLeft, currentY, {
-            baseline: 'top'
-          });
-          currentY += lineHeight;
-        });
-        
-        // Add extra spacing after blocks that were likely headers
-        if (block.trim().startsWith('#')) {
-             currentY += 2;
-        }
-      });
+        doc.text(lines[i], margin, cursorY);
+        cursorY += lineHeight;
+      }
       
-      const safeName = candidateName.replace(/[^a-zA-Z0-9]/g, '_');
-      doc.save(`${safeName}_Resume.pdf`);
+      const safeName = candidateName.replace(/[^a-zA-Z0-9-_]/g, '_');
+      doc.save(`${safeName}_ATS_Resume.pdf`);
+
     } catch (error) {
       console.error("PDF Generation failed:", error);
-      alert("Could not generate PDF. Please try again.");
+      alert(`Could not generate PDF. Error: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
