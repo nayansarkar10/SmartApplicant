@@ -245,71 +245,56 @@ const App: React.FC = () => {
   };
 
   const handleDownloadAtsResume = () => {
-    if (!atsResume || atsResume.trim().length === 0) {
-      alert("Please generate the ATS resume first before downloading.");
+    if (!atsResume) {
+      alert("Please generate the resume first.");
       return;
     }
 
-    let candidateName = "Candidate";
-    try {
-      const input = prompt("Enter your name for the file:", "CandidateName");
-      if (input === null) return; // User cancelled
-      if (input) candidateName = input;
-    } catch (e) {
-      console.error("Prompt error:", e);
-    }
+    let name = "Candidate";
+    const input = prompt("File name (your name):", "Candidate");
+    if (input === null) return;
+    if (input) name = input;
 
     try {
-      // Create new document
-      const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 20;
-      const maxWidth = pageWidth - (margin * 2);
+      const doc = new jsPDF();
       
+      // Settings
+      const fontSize = 11;
+      const lineHeight = 6; // mm
+      const margin = 20;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const maxLineWidth = pageWidth - (margin * 2);
+      const pageHeight = doc.internal.pageSize.getHeight();
+
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(11);
+      doc.setFontSize(fontSize);
       doc.setTextColor(0, 0, 0);
 
-      // Clean text: 
-      // 1. Replace tabs with spaces
-      // 2. Replace bullets with dashes
-      // 3. Remove bold/header markdown markers
-      // 4. Strip non-printable characters (keep newlines)
-      const cleanText = atsResume
-        .replace(/\t/g, "  ")
-        .replace(/•/g, "-")
-        .replace(/\*\*/g, "")
-        .replace(/#/g, "")
-        .replace(/[^\x20-\x7E\n\r]/g, "");
+      // Clean content
+      let content = atsResume
+        .replace(/\t/g, "    ") // Tabs to spaces
+        .replace(/[^\x20-\x7E\n\r]/g, ""); // Remove non-ascii
 
-      // Split text into lines that fit the page width
-      const lines = doc.splitTextToSize(cleanText, maxWidth);
+      // Split into lines that fit width
+      const textLines = doc.splitTextToSize(content, maxLineWidth);
 
-      let cursorY = margin;
-      const lineHeight = 6; // mm
+      let y = margin;
 
-      // Loop through lines and add pages as needed
-      for (let i = 0; i < lines.length; i++) {
-        if (cursorY + lineHeight > pageHeight - margin) {
+      textLines.forEach((line: string) => {
+        if (y + lineHeight > pageHeight - margin) {
           doc.addPage();
-          cursorY = margin;
+          y = margin;
         }
-        doc.text(lines[i], margin, cursorY);
-        cursorY += lineHeight;
-      }
-      
-      const safeName = candidateName.replace(/[^a-zA-Z0-9-_]/g, '_');
-      doc.save(`${safeName}_ATS_Resume.pdf`);
+        doc.text(line, margin, y);
+        y += lineHeight;
+      });
 
-    } catch (error) {
-      console.error("PDF Generation failed:", error);
-      alert(`Could not generate PDF. Error: ${error instanceof Error ? error.message : String(error)}`);
+      const filename = `${name.replace(/[^a-z0-9]/gi, '_')}_Resume.pdf`;
+      doc.save(filename);
+
+    } catch (err) {
+      console.error(err);
+      alert("Error generating PDF. Please try again.");
     }
   };
 
