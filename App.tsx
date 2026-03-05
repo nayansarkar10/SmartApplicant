@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { jsPDF } from 'jspdf';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx';
+import { saveAs } from 'file-saver';
 import { 
   ArrowRight, 
   ChevronLeft, 
@@ -244,7 +246,7 @@ const App: React.FC = () => {
     doc.save(`${safeCompanyName}.pdf`);
   };
 
-  const handleDownloadAtsResume = () => {
+  const handleDownloadAtsResume = async () => {
     if (!atsResume) {
       alert("Please generate the resume first.");
       return;
@@ -256,45 +258,66 @@ const App: React.FC = () => {
     if (input) name = input;
 
     try {
-      const doc = new jsPDF();
-      
-      // Settings
-      const fontSize = 11;
-      const lineHeight = 6; // mm
-      const margin = 20;
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const maxLineWidth = pageWidth - (margin * 2);
-      const pageHeight = doc.internal.pageSize.getHeight();
+      // Split content by newlines
+      const lines = atsResume.split('\n');
+      const children: Paragraph[] = [];
 
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(fontSize);
-      doc.setTextColor(0, 0, 0);
-
-      // Clean content
-      let content = atsResume
-        .replace(/\t/g, "    ") // Tabs to spaces
-        .replace(/[^\x20-\x7E\n\r]/g, ""); // Remove non-ascii
-
-      // Split into lines that fit width
-      const textLines = doc.splitTextToSize(content, maxLineWidth);
-
-      let y = margin;
-
-      textLines.forEach((line: string) => {
-        if (y + lineHeight > pageHeight - margin) {
-          doc.addPage();
-          y = margin;
+      lines.forEach(line => {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) {
+          // Add empty paragraph for spacing
+          children.push(new Paragraph({}));
+          return;
         }
-        doc.text(line, margin, y);
-        y += lineHeight;
+
+        // Check for headers (lines starting with #)
+        if (trimmedLine.startsWith('# ')) {
+          children.push(new Paragraph({
+            text: trimmedLine.replace('# ', ''),
+            heading: HeadingLevel.HEADING_1,
+            spacing: { before: 200, after: 100 },
+          }));
+        } else if (trimmedLine.startsWith('## ')) {
+          children.push(new Paragraph({
+            text: trimmedLine.replace('## ', ''),
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 150, after: 75 },
+          }));
+        } else if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ')) {
+             // Bullet points
+             children.push(new Paragraph({
+                text: trimmedLine.replace(/^[-*]\s+/, ''),
+                bullet: { level: 0 }
+             }));
+        } else {
+          // Regular text
+          children.push(new Paragraph({
+            children: [
+              new TextRun({
+                text: trimmedLine,
+                size: 22, // 11pt
+                font: "Calibri"
+              }),
+            ],
+            spacing: { after: 100 }
+          }));
+        }
       });
 
-      const filename = `${name.replace(/[^a-z0-9]/gi, '_')}_Resume.pdf`;
-      doc.save(filename);
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: children,
+        }],
+      });
+
+      const blob = await Packer.toBlob(doc);
+      const filename = `${name.replace(/[^a-z0-9]/gi, '_')}_Resume.docx`;
+      saveAs(blob, filename);
 
     } catch (err) {
       console.error(err);
-      alert("Error generating PDF. Please try again.");
+      alert("Error generating DOCX. Please try again.");
     }
   };
 
@@ -610,7 +633,7 @@ const App: React.FC = () => {
               {copiedAts ? 'Copied to Clipboard' : 'Copy Resume'}
             </Button>
             <Button onClick={handleDownloadAtsResume} variant="outline" className="flex-1">
-              <Download className="w-4 h-4 mr-2" /> Download PDF
+              <Download className="w-4 h-4 mr-2" /> Download DOCX
             </Button>
          </div>
 
