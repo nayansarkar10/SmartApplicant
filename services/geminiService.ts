@@ -18,9 +18,9 @@ export const generateCoverLetter = async (
   jobDescription: string
 ): Promise<GenerateCoverLetterResult> => {
   try {
-    // Using gemini-3-pro-preview for complex reasoning and accurate extraction
+    // Using gemini-3.1-pro-preview for complex reasoning and accurate extraction
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3.1-pro-preview',
       contents: {
         parts: [
           {
@@ -244,7 +244,7 @@ export const processChatInteraction = async (
     }
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.1-pro-preview',
       contents: { parts },
       config: {
         temperature: 0.5,
@@ -279,7 +279,7 @@ export const generateEmailMessage = async (
 ): Promise<string> => {
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-3.1-pro-preview',
       contents: {
         parts: [
            {
@@ -341,7 +341,7 @@ export const generateAtsResume = async (
 ): Promise<string> => {
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-3.1-pro-preview',
       contents: {
         parts: [
           {
@@ -362,17 +362,24 @@ export const generateAtsResume = async (
               ${jobDescription}
 
               TASK:
-              Rewrite and optimize the attached resume to be highly ATS-friendly for the provided job description.
+              Rewrite and optimize the attached resume to be 100% machine-readable and highly ranked by ATS algorithms/ML. 
+              
+              CLEAN ATS OPTIMIZATION RULES:
+              1. NO COMPLEX SYMBOLS: Use standard ASCII characters. No tables, no columns, no fancy icons.
+              2. STRUCTURE: Use a single-column layout only.
+              3. KEYWORDS: Ingest the Job Description and weave critical technical and soft keywords into the skills and experience sections naturally.
+              4. HEADINGS: Use clear, standard headings: PROFILE, EXPERIENCE, SKILLS, EDUCATION.
+              5. FONTS: Output text in a simple, clear hierarchy.
               
               STRICT FORMATTING AND CONTENT GUIDELINES:
               
-              1. HEADER: Format exactly like this using the candidate's details from the resume:
+              1. HEADER: Format exactly like this:
               # [CANDIDATE NAME]
               [Job Title/Headline]
               Address: [Address] | Mobile: [Mobile] | Email: [Email]
               Social: [LinkedIn Link] | [GitHub Link]
               
-              (Example:
+              (Header Example:
               # NAYAN SARKAR
               Marketing & Business Development
               Address: Pune, IN | Mobile: +91 6009315429 | Email: nayan.sarkar_10@yahoo.com 
@@ -380,22 +387,25 @@ export const generateAtsResume = async (
               )
               
               2. # PROFILE
-              Keep the original profile/summary from the resume. Do not change it.
+              Keep the original profile/summary from the resume but optimize it with 2-3 keywords from the job description if applicable.
               
               3. # SKILLS
-              Keep the default skills from the resume, and ADD new skills based on the job description. Group them based on category.
+              Categorize skills. Ensure keywords from the Job Description are prominently included. 
               
-              4. # WORK EXPERIENCE
-              Do not change anything from the original resume. Keep it exactly as is.
+              4. # EXPERIENCE
+              Format as:
+              [Job Title] | [Company Name] | [Dates]
+              - [Bullet point using Action Verb + Task + Result]
               
-              5. # Education
-              Do not change anything from the original resume. Keep it exactly as is.
+              5. # EDUCATION
+              Format as:
+              [Degree] | [University Name] | [Dates]
               
-              6. # Language & Hobbies
-              Do not change anything from the original resume. Keep it exactly as is.
+              6. # LANGUAGE & HOBBIES
+              List clearly.
               
-              - Output the optimized resume in clean Markdown format.
-              - Do not include any introductory or concluding remarks, just the resume content.
+              - Output ONLY the optimized resume in clean Markdown format.
+              - Ensure the output is streamlined for Natural Language Processing (NLP) parsers.
             `,
           },
         ],

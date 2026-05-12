@@ -246,78 +246,72 @@ const App: React.FC = () => {
     doc.save(`${safeCompanyName}.pdf`);
   };
 
-  const handleDownloadAtsResume = async () => {
+  const handleDownloadAtsResume = () => {
     if (!atsResume) {
       alert("Please generate the resume first.");
       return;
     }
 
-    let name = "Candidate";
-    const input = prompt("File name (your name):", "Candidate");
-    if (input === null) return;
-    if (input) name = input;
+    const nameForFile = "Nayan_Sarkar"; // As requested in the template
+    const safeCompanyName = companyName.replace(/[^a-zA-Z0-9]/g, '_') || 'Company';
+    const filename = `ATS_${safeCompanyName}_${nameForFile}_Resume.pdf`;
 
     try {
-      // Split content by newlines
-      const lines = atsResume.split('\n');
-      const children: Paragraph[] = [];
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      // Clean settings for ATS readability
+      const fontSize = 10;
+      const lineHeight = 5; // mm
+      const margin = 20;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const maxLineWidth = pageWidth - (margin * 2);
+      const pageHeight = doc.internal.pageSize.getHeight();
 
-      lines.forEach(line => {
-        const trimmedLine = line.trim();
-        if (!trimmedLine) {
-          // Add empty paragraph for spacing
-          children.push(new Paragraph({}));
-          return;
-        }
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(fontSize);
+      doc.setTextColor(0, 0, 0);
 
-        // Check for headers (lines starting with #)
-        if (trimmedLine.startsWith('# ')) {
-          children.push(new Paragraph({
-            text: trimmedLine.replace('# ', ''),
-            heading: HeadingLevel.HEADING_1,
-            spacing: { before: 200, after: 100 },
-          }));
-        } else if (trimmedLine.startsWith('## ')) {
-          children.push(new Paragraph({
-            text: trimmedLine.replace('## ', ''),
-            heading: HeadingLevel.HEADING_2,
-            spacing: { before: 150, after: 75 },
-          }));
-        } else if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ')) {
-             // Bullet points
-             children.push(new Paragraph({
-                text: trimmedLine.replace(/^[-*]\s+/, ''),
-                bullet: { level: 0 }
-             }));
+      // Clean content for PDF extraction
+      let content = atsResume
+        .replace(/\t/g, "    ") // Tabs to spaces
+        .replace(/[^\x20-\x7E\n\r]/g, ""); // Remove non-ascii characters that might break parsers
+
+      // Split into lines that fit width
+      const textLines = doc.splitTextToSize(content, maxLineWidth);
+
+      let y = margin;
+
+      textLines.forEach((line: string) => {
+        // Headers (simulated based on Markdown start)
+        if (line.startsWith('#')) {
+          doc.setFont("helvetica", "bold");
+          const headerText = line.replace(/^[#\s]+/, '');
+          
+          if (y + lineHeight > pageHeight - margin) {
+            doc.addPage();
+            y = margin;
+          }
+          doc.text(headerText, margin, y);
+          doc.setFont("helvetica", "normal");
         } else {
-          // Regular text
-          children.push(new Paragraph({
-            children: [
-              new TextRun({
-                text: trimmedLine,
-                size: 22, // 11pt
-                font: "Calibri"
-              }),
-            ],
-            spacing: { after: 100 }
-          }));
+          if (y + lineHeight > pageHeight - margin) {
+            doc.addPage();
+            y = margin;
+          }
+          doc.text(line, margin, y);
         }
+        y += lineHeight;
       });
 
-      const doc = new Document({
-        sections: [{
-          properties: {},
-          children: children,
-        }],
-      });
-
-      const blob = await Packer.toBlob(doc);
-      const filename = `${name.replace(/[^a-z0-9]/gi, '_')}_Resume.docx`;
-      saveAs(blob, filename);
+      doc.save(filename);
 
     } catch (err) {
       console.error(err);
-      alert("Error generating DOCX. Please try again.");
+      alert("Error generating PDF. Please try again.");
     }
   };
 
@@ -633,7 +627,7 @@ const App: React.FC = () => {
               {copiedAts ? 'Copied to Clipboard' : 'Copy Resume'}
             </Button>
             <Button onClick={handleDownloadAtsResume} variant="outline" className="flex-1">
-              <Download className="w-4 h-4 mr-2" /> Download DOCX
+              <Download className="w-4 h-4 mr-2" /> Download PDF
             </Button>
          </div>
 
